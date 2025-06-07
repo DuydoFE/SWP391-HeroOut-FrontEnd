@@ -110,9 +110,22 @@ const Register = () => {
                         </Form.Item>
 
                         <Form.Item>
-                            <Button type="primary" htmlType="submit" block style={{ backgroundColor: "#009066", borderColor: "#009066" }}>
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                block
+                                style={{
+                                    backgroundColor: "#009066",
+                                    borderColor: "#009066",
+                                    padding: "10px 20px",       
+                                    fontSize: "14px",          
+                                    height: "44px",             
+                                    borderRadius: "6px",        
+                                }}
+                            >
                                 Đăng ký
                             </Button>
+
                         </Form.Item>
                     </Form>
 
