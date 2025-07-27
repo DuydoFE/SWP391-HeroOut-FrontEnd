@@ -58,7 +58,7 @@ const SurveyEvent = () => {
         const selectedOption = question.options.find(
           (opt) => opt.id === selectedOptionId
         );
-        // Cộng dồn điểm của lựa chọn (có thể là 0 hoặc > 0)
+        // tính điểm
         totalScore += selectedOption?.score || 0;
       }
     });
@@ -83,7 +83,7 @@ const SurveyEvent = () => {
     };
     try {
       await api.post("/survey-responses/submit", payload);
-      // Nộp thành công, tính toán và hiển thị kết quả
+
       calculateAndSetResults();
     } catch (err) {
       console.error("Error submitting survey:", err);
@@ -121,7 +121,6 @@ const SurveyEvent = () => {
       </div>
     );
 
-  // --- GIAO DIỆN HIỂN THỊ KẾT QUẢ ---
   if (surveyResult) {
     return (
       <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
@@ -162,10 +161,10 @@ const SurveyEvent = () => {
 
                     let style = "border-gray-200";
                     if (isCorrectAnswer) {
-                      style = "bg-green-100 border-green-400"; // Câu trả lời đúng
+                      style = "bg-green-100 border-green-400";
                     }
                     if (isUserAnswer && !isCorrectAnswer) {
-                      style = "bg-red-100 border-red-400"; // Chọn sai
+                      style = "bg-red-100 border-red-400";
                     }
 
                     return (
@@ -203,7 +202,6 @@ const SurveyEvent = () => {
     );
   }
 
-  // --- GIAO DIỆN LÀM BÀI KHẢO SÁT ---
   return (
     <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
       <button

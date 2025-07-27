@@ -184,8 +184,19 @@ const Header = () => {
                         <Calendar className="w-4 h-4 mr-3" />
                         Lịch hẹn của tôi
                       </Link>
+                      <Link
+                        to="/myevent"
+                        className={`flex items-center px-4 py-2 text-sm transition-colors ${
+                          isActiveRoute("/myevent")
+                            ? "text-emerald-600 bg-emerald-50"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        <Calendar className="w-4 h-4 mr-3" />
+                        Sự kiện của tôi
+                      </Link>
 
-                      {/* NÚT MỚI ĐƯỢC THÊM VÀO */}
                       <Link
                         to="/risklevel" // Sử dụng đường dẫn /risksurvey
                         className={`flex items-center px-4 py-2 text-sm transition-colors ${
