@@ -10,8 +10,15 @@ import {
   X,
   Clock,
   Trash2,
+  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import ApiService from "../../services/apiService";
+import axios from "axios";
+
+// Cloudinary configuration
+const CLOUDINARY_CLOUD_NAME = "dluj1wjzd";
+const CLOUDINARY_UPLOAD_PRESET = "HeroOut";
 
 const StaffBlog = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,7 +33,9 @@ const StaffBlog = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingBlog, setEditingBlog] = useState(null);
   const [deletingBlog, setDeletingBlog] = useState(null);
-  const [createBlogData, setCreateBlogData] = useState({
+  const [imageUploading, setImageUploading] = useState(false);
+
+  const initialCreateState = {
     title: "",
     description: "",
     content: "",
@@ -35,27 +44,62 @@ const StaffBlog = () => {
     readTime: "5 phút đọc",
     views: "0 lượt xem",
     tags: [],
-  });
+    image: "",
+  };
+  const [createBlogData, setCreateBlogData] = useState(initialCreateState);
   const blogsPerPage = 10;
 
   // Fetch blogs from API
-  useEffect(() => {
-    const fetchBlogs = async () => {
-      try {
-        setLoading(true);
-        const data = await ApiService.getBlogs();
-        setBlogs(data);
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-        console.error("Error fetching blogs:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchBlogs = async () => {
+    try {
+      setLoading(true);
+      const data = await ApiService.getBlogs();
+      setBlogs(data);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+      console.error("Error fetching blogs:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchBlogs();
   }, []);
+
+  // Handle image upload to Cloudinary
+  const handleImageUpload = async (e, modalType) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Vui lòng chọn một file hình ảnh.");
+      return;
+    }
+    setImageUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+    try {
+      const response = await axios.post(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        formData
+      );
+      const imageUrl = response.data.secure_url;
+      if (modalType === "create") {
+        setCreateBlogData((prev) => ({ ...prev, image: imageUrl }));
+      } else if (modalType === "edit") {
+        setEditingBlog((prev) => ({ ...prev, image: imageUrl }));
+      }
+      alert("Tải ảnh lên thành công!");
+    } catch (error) {
+      alert("Tải ảnh lên thất bại. Vui lòng thử lại.");
+      console.error("Cloudinary Upload Error:", error);
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   // View blog detail
   const handleViewDetail = async (blogId) => {
@@ -76,8 +120,30 @@ const StaffBlog = () => {
 
   // Save edited blog
   const handleSaveEdit = async () => {
+    if (!editingBlog) return;
     try {
-      // Prepare the data for API
+      // Validate required fields
+      if (!editingBlog.title.trim()) {
+        alert("Vui lòng nhập tiêu đề bài viết");
+        return;
+      }
+      if (!editingBlog.description.trim()) {
+        alert("Vui lòng nhập mô tả bài viết");
+        return;
+      }
+      if (!editingBlog.content.trim()) {
+        alert("Vui lòng nhập nội dung bài viết");
+        return;
+      }
+      if (!editingBlog.category.trim()) {
+        alert("Vui lòng nhập danh mục bài viết");
+        return;
+      }
+      if (!editingBlog.author.name.trim()) {
+        alert("Vui lòng nhập tên tác giả");
+        return;
+      }
+
       const blogData = {
         title: editingBlog.title,
         description: editingBlog.description,
@@ -87,25 +153,31 @@ const StaffBlog = () => {
         readTime: editingBlog.readTime || "5 phút đọc",
         views: editingBlog.views || "0 lượt xem",
         date: editingBlog.date || new Date().toISOString().split("T")[0],
-        tags: editingBlog.tags || [],
+        tags: Array.isArray(editingBlog.tags)
+          ? editingBlog.tags.join(",")
+          : editingBlog.tags,
+        image: editingBlog.image,
       };
 
-      // Call API to update the blog
-      await ApiService.updateBlog(editingBlog.id, blogData);
+      const updatedBlogFromApi = await ApiService.updateBlog(
+        editingBlog.id,
+        blogData
+      );
 
-      // Update local state
-      const updatedBlog = {
+      const finalUpdatedBlog = {
         ...editingBlog,
-        author: {
-          ...editingBlog.author,
-          name: blogData.author,
-        },
+        ...updatedBlogFromApi,
+        author: { ...editingBlog.author, name: updatedBlogFromApi.author },
+        tags: updatedBlogFromApi.tags
+          ? updatedBlogFromApi.tags.split(",").map((t) => t.trim())
+          : [],
       };
 
       setBlogs(
-        blogs.map((blog) => (blog.id === editingBlog.id ? updatedBlog : blog))
+        blogs.map((blog) =>
+          blog.id === editingBlog.id ? finalUpdatedBlog : blog
+        )
       );
-
       setShowEditModal(false);
       setEditingBlog(null);
       alert("Cập nhật bài viết thành công!");
@@ -117,29 +189,21 @@ const StaffBlog = () => {
   // Create new blog
   const handleCreateBlog = async () => {
     try {
-      // Validate required fields
-      if (!createBlogData.title.trim()) {
-        alert("Vui lòng nhập tiêu đề bài viết");
+      if (
+        !createBlogData.title.trim() ||
+        !createBlogData.description.trim() ||
+        !createBlogData.content.trim() ||
+        !createBlogData.category.trim() ||
+        !createBlogData.author.trim()
+      ) {
+        alert("Vui lòng điền đầy đủ các trường bắt buộc (*).");
         return;
       }
-      if (!createBlogData.description.trim()) {
-        alert("Vui lòng nhập mô tả bài viết");
-        return;
-      }
-      if (!createBlogData.content.trim()) {
-        alert("Vui lòng nhập nội dung bài viết");
-        return;
-      }
-      if (!createBlogData.category.trim()) {
-        alert("Vui lòng nhập danh mục bài viết");
-        return;
-      }
-      if (!createBlogData.author.trim()) {
-        alert("Vui lòng nhập tên tác giả");
-        return;
-      }
-
-      const newBlog = await ApiService.createBlog(createBlogData);
+      const newBlogData = {
+        ...createBlogData,
+        tags: createBlogData.tags.join(","),
+      };
+      const newBlog = await ApiService.createBlog(newBlogData);
 
       // Transform the response to match the expected format
       const transformedBlog = {
@@ -159,23 +223,12 @@ const StaffBlog = () => {
         tags: newBlog.tags
           ? newBlog.tags.split(",").map((tag) => tag.trim())
           : [],
+        image: newBlog.image || "",
       };
 
       setBlogs([transformedBlog, ...blogs]);
       setShowCreateModal(false);
-
-      // Reset form
-      setCreateBlogData({
-        title: "",
-        description: "",
-        content: "",
-        category: "",
-        author: "",
-        readTime: "5 phút đọc",
-        views: "0 lượt xem",
-        tags: [],
-      });
-
+      setCreateBlogData(initialCreateState);
       alert("Tạo bài viết mới thành công!");
     } catch (err) {
       alert("Có lỗi xảy ra khi tạo bài viết: " + err.message);
@@ -189,12 +242,10 @@ const StaffBlog = () => {
   };
 
   const confirmDeleteBlog = async () => {
+    if (!deletingBlog) return;
     try {
       await ApiService.deleteBlog(deletingBlog.id);
-
-      // Update local state
       setBlogs(blogs.filter((blog) => blog.id !== deletingBlog.id));
-
       setShowDeleteModal(false);
       setDeletingBlog(null);
       alert("Xóa bài viết thành công!");
@@ -203,14 +254,13 @@ const StaffBlog = () => {
     }
   };
 
-  // Filter blogs based on search term only
-  const filteredBlogs = blogs.filter((blog) => {
-    return (
+  // Filter blogs based on search term
+  const filteredBlogs = blogs.filter(
+    (blog) =>
       blog.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       blog.author.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       blog.category.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
+  );
 
   // Pagination
   const indexOfLastBlog = currentPage * blogsPerPage;
@@ -321,6 +371,9 @@ const StaffBlog = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ảnh bìa
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Bài viết
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -343,6 +396,19 @@ const StaffBlog = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {currentBlogs.map((blog) => (
                 <tr key={blog.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    {blog.image ? (
+                      <img
+                        src={blog.image}
+                        alt={blog.title}
+                        className="w-24 h-16 object-cover rounded-md"
+                      />
+                    ) : (
+                      <div className="w-24 h-16 bg-gray-100 flex items-center justify-center rounded-md">
+                        <ImageIcon className="w-6 h-6 text-gray-400" />
+                      </div>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     <div>
                       <div className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">
@@ -521,23 +587,42 @@ const StaffBlog = () => {
                   />
                 </div>
 
-                {/* Category */}
+                {/* Image Upload */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Danh mục *
+                    Ảnh bìa
                   </label>
-                  <input
-                    type="text"
-                    value={createBlogData.category}
-                    onChange={(e) =>
-                      setCreateBlogData({
-                        ...createBlogData,
-                        category: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Nhập danh mục bài viết"
-                  />
+                  <div className="mt-1 flex items-center gap-4">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, "create")}
+                      className="hidden"
+                      id="create-image-upload"
+                      disabled={imageUploading}
+                    />
+                    <label
+                      htmlFor="create-image-upload"
+                      className={`px-4 py-2 border border-gray-300 rounded-md cursor-pointer ${
+                        imageUploading
+                          ? "bg-gray-200 cursor-not-allowed"
+                          : "bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      {imageUploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin inline-block" />
+                      ) : (
+                        "Chọn ảnh"
+                      )}
+                    </label>
+                    {createBlogData.image && (
+                      <img
+                        src={createBlogData.image}
+                        alt="Xem trước"
+                        className="h-20 w-auto rounded-md object-cover border"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 {/* Description */}
@@ -578,42 +663,42 @@ const StaffBlog = () => {
                   />
                 </div>
 
-                {/* Author and Read Time */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tác giả *
-                    </label>
-                    <input
-                      type="text"
-                      value={createBlogData.author}
-                      onChange={(e) =>
-                        setCreateBlogData({
-                          ...createBlogData,
-                          author: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Nhập tên tác giả"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Thời gian đọc
-                    </label>
-                    <input
-                      type="text"
-                      value={createBlogData.readTime}
-                      onChange={(e) =>
-                        setCreateBlogData({
-                          ...createBlogData,
-                          readTime: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="VD: 5 phút đọc"
-                    />
-                  </div>
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Danh mục *
+                  </label>
+                  <input
+                    type="text"
+                    value={createBlogData.category}
+                    onChange={(e) =>
+                      setCreateBlogData({
+                        ...createBlogData,
+                        category: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Nhập danh mục bài viết"
+                  />
+                </div>
+
+                {/* Author */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tác giả *
+                  </label>
+                  <input
+                    type="text"
+                    value={createBlogData.author}
+                    onChange={(e) =>
+                      setCreateBlogData({
+                        ...createBlogData,
+                        author: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Nhập tên tác giả"
+                  />
                 </div>
 
                 {/* Tags */}
@@ -623,9 +708,7 @@ const StaffBlog = () => {
                   </label>
                   <input
                     type="text"
-                    value={
-                      createBlogData.tags ? createBlogData.tags.join(", ") : ""
-                    }
+                    value={createBlogData.tags.join(", ")}
                     onChange={(e) =>
                       setCreateBlogData({
                         ...createBlogData,
@@ -655,6 +738,193 @@ const StaffBlog = () => {
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
               >
                 Tạo bài viết
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Blog Modal */}
+      {showEditModal && editingBlog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Chỉnh sửa bài viết
+              </h2>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              <div className="space-y-6">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tiêu đề
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBlog.title}
+                    onChange={(e) =>
+                      setEditingBlog({ ...editingBlog, title: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Image Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Ảnh bìa
+                  </label>
+                  <div className="mt-1 flex items-center gap-4">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e, "edit")}
+                      className="hidden"
+                      id="edit-image-upload"
+                      disabled={imageUploading}
+                    />
+                    <label
+                      htmlFor="edit-image-upload"
+                      className={`px-4 py-2 border border-gray-300 rounded-md cursor-pointer ${
+                        imageUploading
+                          ? "bg-gray-200 cursor-not-allowed"
+                          : "bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      {imageUploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin inline-block" />
+                      ) : (
+                        "Đổi ảnh"
+                      )}
+                    </label>
+                    {editingBlog.image && (
+                      <img
+                        src={editingBlog.image}
+                        alt="Xem trước"
+                        className="h-20 w-auto rounded-md object-cover border"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Mô tả
+                  </label>
+                  <textarea
+                    value={editingBlog.description}
+                    onChange={(e) =>
+                      setEditingBlog({
+                        ...editingBlog,
+                        description: e.target.value,
+                      })
+                    }
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Content */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nội dung
+                  </label>
+                  <textarea
+                    value={editingBlog.content}
+                    onChange={(e) =>
+                      setEditingBlog({
+                        ...editingBlog,
+                        content: e.target.value,
+                      })
+                    }
+                    rows={10}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Danh mục
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBlog.category}
+                    onChange={(e) =>
+                      setEditingBlog({
+                        ...editingBlog,
+                        category: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Author */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tên tác giả
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBlog.author.name}
+                    onChange={(e) =>
+                      setEditingBlog({
+                        ...editingBlog,
+                        author: { ...editingBlog.author, name: e.target.value },
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tags (phân cách bằng dấu phẩy)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingBlog.tags.join(", ")}
+                    onChange={(e) =>
+                      setEditingBlog({
+                        ...editingBlog,
+                        tags: e.target.value
+                          .split(",")
+                          .map((tag) => tag.trim())
+                          .filter((tag) => tag),
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+              >
+                Lưu thay đổi
               </button>
             </div>
           </div>
@@ -723,6 +993,14 @@ const StaffBlog = () => {
                   </div>
                 </div>
 
+                {selectedBlog.image && (
+                  <img
+                    src={selectedBlog.image}
+                    alt={selectedBlog.title}
+                    className="w-full h-64 object-cover rounded-md mb-4"
+                  />
+                )}
+
                 <p className="text-gray-700 text-lg leading-relaxed">
                   {selectedBlog.description}
                 </p>
@@ -753,179 +1031,6 @@ const StaffBlog = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Blog Modal */}
-      {showEditModal && editingBlog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Chỉnh sửa bài viết
-              </h2>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-              <div className="space-y-6">
-                {/* Title */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tiêu đề
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBlog.title}
-                    onChange={(e) =>
-                      setEditingBlog({ ...editingBlog, title: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Danh mục
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBlog.category}
-                    onChange={(e) =>
-                      setEditingBlog({
-                        ...editingBlog,
-                        category: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mô tả
-                  </label>
-                  <textarea
-                    value={editingBlog.description}
-                    onChange={(e) =>
-                      setEditingBlog({
-                        ...editingBlog,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Content */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nội dung
-                  </label>
-                  <textarea
-                    value={editingBlog.content}
-                    onChange={(e) =>
-                      setEditingBlog({
-                        ...editingBlog,
-                        content: e.target.value,
-                      })
-                    }
-                    rows={10}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                {/* Author Info */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tên tác giả
-                    </label>
-                    <input
-                      type="text"
-                      value={editingBlog.author.name}
-                      onChange={(e) =>
-                        setEditingBlog({
-                          ...editingBlog,
-                          author: {
-                            ...editingBlog.author,
-                            name: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Chức vụ
-                    </label>
-                    <input
-                      type="text"
-                      value={editingBlog.author.role}
-                      onChange={(e) =>
-                        setEditingBlog({
-                          ...editingBlog,
-                          author: {
-                            ...editingBlog.author,
-                            role: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Tags */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tags (phân cách bằng dấu phẩy)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingBlog.tags ? editingBlog.tags.join(", ") : ""}
-                    onChange={(e) =>
-                      setEditingBlog({
-                        ...editingBlog,
-                        tags: e.target.value
-                          .split(",")
-                          .map((tag) => tag.trim())
-                          .filter((tag) => tag),
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-              >
-                Lưu thay đổi
-              </button>
             </div>
           </div>
         </div>

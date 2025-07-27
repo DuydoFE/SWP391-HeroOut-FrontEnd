@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { getBlogImage } from "../utils/blogImages";
 import ApiService from "../services/apiService";
 
 const BlogsPage = () => {
@@ -277,10 +276,7 @@ const BlogsPage = () => {
                   <div className="flex items-start mb-4">
                     <div className="mr-6 mt-2">
                       <img
-                        src={
-                          getBlogImage(filteredPosts[0].id) ||
-                          "/placeholder.svg"
-                        }
+                        src={filteredPosts[0].image || "/placeholder.svg"}
                         alt={filteredPosts[0].title}
                         className="w-24 h-24 object-cover rounded-lg shadow-lg"
                       />
@@ -389,7 +385,7 @@ const BlogsPage = () => {
                 >
                   <div className="relative overflow-hidden">
                     <img
-                      src={getBlogImage(post.id) || "/placeholder.svg"}
+                      src={post.image || "/placeholder.svg"}
                       alt={post.title}
                       className="w-full h-48 object-cover"
                     />
@@ -455,7 +451,7 @@ const BlogsPage = () => {
                     style={{ minWidth: "200px" }}
                   >
                     <img
-                      src={getBlogImage(post.id) || "/placeholder.svg"}
+                      src={post.image || "/placeholder.svg"}
                       alt={post.title}
                       className="w-full h-32 object-cover"
                     />

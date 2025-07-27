@@ -704,6 +704,7 @@ class ApiService {
         views: blog.views || "0 lượt xem",
         date: blog.date || new Date().toLocaleDateString("vi-VN"),
         tags: blog.tags ? blog.tags.split(",").map((tag) => tag.trim()) : [],
+        image: blog.image || "", // Add image field
       }));
     } catch (error) {
       console.error("Error fetching blogs:", error);
@@ -739,6 +740,7 @@ class ApiService {
         views: blog.views || "0 lượt xem",
         date: blog.date || new Date().toLocaleDateString("vi-VN"),
         tags: blog.tags ? blog.tags.split(",").map((tag) => tag.trim()) : [],
+        image: blog.image || "", // Add image field
       };
     } catch (error) {
       console.error("Error fetching blog:", error);
@@ -760,6 +762,7 @@ class ApiService {
         tags: Array.isArray(blogData.tags)
           ? blogData.tags.join(", ")
           : blogData.tags || "",
+        image: blogData.image || "", // Add image field
       };
 
       const response = await api.post("blogs", payload);
@@ -784,6 +787,7 @@ class ApiService {
         tags: Array.isArray(blogData.tags)
           ? blogData.tags.join(", ")
           : blogData.tags || "",
+        image: blogData.image || "", // Add image field
       };
 
       const response = await api.put(`blogs/${id}`, payload);
