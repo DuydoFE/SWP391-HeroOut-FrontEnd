@@ -1,6 +1,5 @@
 import { useParams, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { getBlogImage } from "../utils/blogImages";
 import Breadcrumb from "../components/Breadcrumb";
 import ApiService from "../services/apiService";
 
@@ -95,18 +94,24 @@ const BlogDetailPage = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Breadcrumb */}
-      <Breadcrumb
-        items={[
-          { label: "Trang chủ", href: "/" },
-          { label: "Blogs", href: "/blogs" },
-          { label: post.title, truncate: true },
-        ]}
-      />
+      <div data-aos="fade-down" data-aos-delay="100">
+        <Breadcrumb
+          items={[
+            { label: "Trang chủ", href: "/" },
+            { label: "Blogs", href: "/blogs" },
+            { label: post.title, truncate: true },
+          ]}
+        />
+      </div>
 
       {/* Blog Post Image */}
-      <div className="container mx-auto px-4 mb-8">
+      <div
+        className="container mx-auto px-4 mb-8"
+        data-aos="fade-up"
+        data-aos-delay="200"
+      >
         <img
-          src={getBlogImage(post.id) || "/placeholder.svg"}
+          src={post.image || "/placeholder.svg"}
           alt={post.title}
           className="w-full h-64 md:h-96 object-cover rounded-lg shadow-lg"
         />
@@ -117,7 +122,7 @@ const BlogDetailPage = () => {
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             {/* Article Header */}
-            <header className="mb-8">
+            <header className="mb-8" data-aos="fade-up" data-aos-delay="300">
               <div className="mb-4">
                 <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-sm font-semibold rounded-full">
                   {post.category}
@@ -203,13 +208,21 @@ const BlogDetailPage = () => {
             </header>
 
             {/* Article Body */}
-            <div className="prose prose-lg max-w-none">
+            <div
+              className="prose prose-lg max-w-none"
+              data-aos="fade-up"
+              data-aos-delay="400"
+            >
               <div dangerouslySetInnerHTML={{ __html: post.content }} />
             </div>
 
             {/* Tags */}
             {post.tags && post.tags.length > 0 && (
-              <div className="mt-8 pt-8 border-t border-gray-200">
+              <div
+                className="mt-8 pt-8 border-t border-gray-200"
+                data-aos="fade-up"
+                data-aos-delay="500"
+              >
                 <h3 className="text-lg font-semibold mb-4">Tags:</h3>
                 <div className="flex flex-wrap gap-2">
                   {post.tags.map((tag, index) => (
@@ -226,7 +239,11 @@ const BlogDetailPage = () => {
 
             {/* Author Bio */}
             {post.author.bio && (
-              <div className="mt-12 p-6 bg-gray-50 rounded-lg">
+              <div
+                className="mt-12 p-6 bg-gray-50 rounded-lg"
+                data-aos="fade-up"
+                data-aos-delay="600"
+              >
                 <div className="flex items-start">
                   <div className="w-16 h-16 bg-emerald-600 text-white rounded-full flex items-center justify-center font-semibold text-xl mr-4 flex-shrink-0">
                     {post.author.avatar}
@@ -254,18 +271,24 @@ const BlogDetailPage = () => {
         <section className="py-12 bg-gray-50">
           <div className="container mx-auto px-4">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl font-bold text-gray-900 mb-8">
+              <h2
+                className="text-2xl font-bold text-gray-900 mb-8"
+                data-aos="fade-up"
+                data-aos-delay="100"
+              >
                 Bài viết liên quan
               </h2>
               <div className="grid md:grid-cols-3 gap-6">
-                {relatedPosts.map((relatedPost) => (
+                {relatedPosts.map((relatedPost, index) => (
                   <div
                     key={relatedPost.id}
                     className="bg-white rounded-lg shadow-md overflow-hidden"
+                    data-aos="fade-up"
+                    data-aos-delay={200 + index * 100}
                   >
                     <div className="relative overflow-hidden">
                       <img
-                        src={getBlogImage(relatedPost.id) || "/placeholder.svg"}
+                        src={relatedPost.image || "/placeholder.svg"}
                         alt={relatedPost.title}
                         className="w-full h-32 object-cover"
                       />
