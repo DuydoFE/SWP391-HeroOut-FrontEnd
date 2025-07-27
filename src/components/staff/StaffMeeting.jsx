@@ -49,6 +49,64 @@ const StaffMeeting = () => {
   // Available schedules for selected consultant
   const [availableSchedules, setAvailableSchedules] = useState([]);
 
+  // Auto-cancel expired appointments
+  const checkAndCancelExpiredAppointments = async (appointments) => {
+    const now = new Date();
+    const expiredAppointments = [];
+
+    appointments.forEach((appointment) => {
+      if (appointment.status === "BOOKED") {
+        // Find the schedule for this appointment
+        const schedule = schedules.find((s) => s.id === appointment.scheduleId);
+        if (schedule && schedule.slot) {
+          const appointmentDate = new Date(appointment.appointmentDate);
+          const slotEnd = schedule.slot.slotEnd;
+
+          if (slotEnd) {
+            const [hours, minutes] = slotEnd.split(":").map(Number);
+            const appointmentEndTime = new Date(appointmentDate);
+            appointmentEndTime.setHours(hours, minutes, 0, 0);
+
+            // Add 15 minutes buffer after slot end time
+            const expiryTime = new Date(
+              appointmentEndTime.getTime() + 15 * 60 * 1000
+            );
+
+            if (now > expiryTime) {
+              expiredAppointments.push(appointment.id);
+            }
+          }
+        }
+      }
+    });
+
+    // Auto-cancel expired appointments
+    if (expiredAppointments.length > 0) {
+      try {
+        await Promise.all(
+          expiredAppointments.map((appointmentId) =>
+            ApiService.updateAppointmentStatus(appointmentId, "CANCELLED")
+          )
+        );
+
+        // Update local state
+        setAppointments((prev) =>
+          prev.map((apt) =>
+            expiredAppointments.includes(apt.id)
+              ? { ...apt, status: "CANCELLED" }
+              : apt
+          )
+        );
+
+        console.log(
+          `Auto-cancelled ${expiredAppointments.length} expired appointments`
+        );
+      } catch (error) {
+        console.error("Error auto-cancelling expired appointments:", error);
+      }
+    }
+  };
+
   // --- Data Fetching ---
   useEffect(() => {
     fetchAllData();
@@ -74,6 +132,9 @@ const StaffMeeting = () => {
         (account) => account.role === "MEMBER"
       );
       setMembers(membersOnly);
+
+      // Check and auto-cancel expired appointments
+      await checkAndCancelExpiredAppointments(appointments || []);
     } catch (err) {
       console.error("Lỗi khi tải dữ liệu:", err);
       if (err.message !== "Unauthorized") {
@@ -84,6 +145,17 @@ const StaffMeeting = () => {
       setIsLoading(false);
     }
   };
+
+  // Auto-check for expired appointments every 5 minutes
+  useEffect(() => {
+    if (appointments.length > 0 && schedules.length > 0) {
+      const interval = setInterval(() => {
+        checkAndCancelExpiredAppointments(appointments);
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return () => clearInterval(interval);
+    }
+  }, [appointments, schedules]);
 
   // Fetch available schedules when consultant is selected
   useEffect(() => {

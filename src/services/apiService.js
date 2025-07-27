@@ -1,5 +1,3 @@
-// file: services/apiService.js
-
 import api from "./axios";
 
 class ApiService {
@@ -40,16 +38,16 @@ class ApiService {
       throw this.handleError(error);
     }
   }
-  
- static async updateAvatar(id, avatarUrl) {
+
+  static async updateAvatar(id, avatarUrl) {
     try {
       // Gửi request tới đúng endpoint /accounts/{id}/avatar
       // Body của request là chuỗi URL trần (raw string)
       // THAY ĐỔI QUAN TRỌNG: Thêm config để chỉ định Content-Type là 'text/plain'
       const response = await api.put(`/accounts/${id}/avatar`, avatarUrl, {
         headers: {
-          'Content-Type': 'text/plain'
-        }
+          "Content-Type": "text/plain",
+        },
       });
       return response.data;
     } catch (error) {
@@ -116,51 +114,49 @@ class ApiService {
             console.warn(
               `No account info found for consultant ID: ${consultant.id}`
             );
-            account = {
-              id: consultant.accountId,
-              name: consultant.consultantName || "Chưa cập nhật",
-              email: "",
-              phone: "",
-              avatar: consultant.consultantName?.charAt(0) || "C",
-              address: "",
-              gender: "",
-              dateOfBirth: null,
-              status: "ACTIVE",
-            };
+            // If account not found, treat as inactive or skip
+            return null; // Return null to filter out later
           }
 
-          return {
-            id: account.id,
-            name: account.name || consultant.consultantName || "Chưa cập nhật",
-            email: account.email || "",
-            phone: account.phone || "",
-            avatar:
-              account.avatar || consultant.consultantName?.charAt(0) || "C",
-            address: account.address || "",
-            gender: account.gender || "",
-            date_of_birth: account.dateOfBirth || null,
-            status: account.status || "ACTIVE",
-            bio: consultant.bio || "Chưa có thông tin",
-            consultations: consultant.consultations || 0,
-            degree_level: consultant.degreeLevel || "Chưa cập nhật",
-            experience: consultant.experience || "Chưa cập nhật",
-            expiry_date: consultant.expiryDate || null,
-            field_of_study: consultant.fieldOfStudy || "Chưa cập nhật",
-            issued_date: consultant.issuedDate || null,
-            organization: consultant.organization || "Chưa cập nhật",
-            rating: consultant.rating || 5.0,
-            specialties: consultant.specialities
-              ? consultant.specialities
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter((s) => s.length > 0)
-              : ["Tư vấn tâm lý"],
-            consultant_id: consultant.id || null,
-            consultantName: consultant.consultantName || "Chưa cập nhật",
-          };
+          // Only include consultants with an active account
+          if (account && account.status === "ACTIVE") {
+            return {
+              id: account.id,
+              name:
+                account.name || consultant.consultantName || "Chưa cập nhật",
+              email: account.email || "",
+              phone: account.phone || "",
+              avatar:
+                account.avatar || consultant.consultantName?.charAt(0) || "C",
+              address: account.address || "",
+              gender: account.gender || "",
+              date_of_birth: account.dateOfBirth || null,
+              status: account.status || "ACTIVE",
+              bio: consultant.bio || "Chưa có thông tin",
+              consultations: consultant.consultations || 0,
+              degree_level: consultant.degreeLevel || "Chưa cập nhật",
+              experience: consultant.experience || "Chưa cập nhật",
+              expiry_date: consultant.expiryDate || null,
+              field_of_study: consultant.fieldOfStudy || "Chưa cập nhật",
+              issued_date: consultant.issuedDate || null,
+              organization: consultant.organization || "Chưa cập nhật",
+              rating: consultant.rating || 5.0,
+              specialties: consultant.specialities
+                ? consultant.specialities
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0)
+                : ["Tư vấn tâm lý"],
+              consultant_id: consultant.id || null,
+              consultantName: consultant.consultantName || "Chưa cập nhật",
+            };
+          } else {
+            return null; // Filter out inactive accounts
+          }
         })
       );
 
+      // Filter out any null entries (inactive or not found accounts)
       const finalConsultants = consultantsWithAccountInfo.filter(
         (consultant) => consultant !== null
       );
@@ -494,6 +490,15 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error("Lỗi khi cập nhật trạng thái:", error);
+      if (error.response?.status === 400) {
+        throw new Error(
+          "Không thể check-in vào thời điểm này. Vui lòng kiểm tra lại thời gian."
+        );
+      } else if (error.response?.status === 404) {
+        throw new Error("Không tìm thấy lịch hẹn.");
+      } else if (error.response?.status === 409) {
+        throw new Error("Lịch hẹn đã được check-in trước đó.");
+      }
       throw this.handleError(error);
     }
   }
