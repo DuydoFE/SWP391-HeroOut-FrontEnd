@@ -1,4 +1,3 @@
-// src/pages/EventDetail.js
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {

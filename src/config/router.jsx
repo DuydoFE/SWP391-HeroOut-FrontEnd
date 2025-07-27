@@ -34,6 +34,7 @@ import MyAppointmentsPage from "../pages/MyAppointmentsPage";
 import StaffViewMeetings from "../components/staff/StaffViewMeetings";
 import RiskLevel from "../pages/RiskLevel";
 import ResetPassword from "../components/authentication/ResetPassword";
+import MyEventsPage from "../components/Event/MyEvent";
 
 export const router = createBrowserRouter([
   {
@@ -78,6 +79,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <SurveyEvent />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/myevent",
+        element: (
+          <ProtectedRoute>
+            <MyEventsPage />
           </ProtectedRoute>
         ),
       },
