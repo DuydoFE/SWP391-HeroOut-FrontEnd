@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Button,
   Modal,
   DatePicker,
   Typography,
   Space,
-  List,
   Card,
   Select,
   Table,
@@ -13,52 +12,45 @@ import {
   Spin,
   Alert,
   message,
+  Tooltip,
 } from "antd";
+import { Lock } from "lucide-react";
 import dayjs from "dayjs";
-
-import api from "../../services/axios";
+import ApiService from "../../services/apiService";
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 const StaffViewMeetings = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
-
   const [consultants, setConsultants] = useState([]);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedConsultantId, setSelectedConsultantId] = useState(null);
-
   const [selectedSlotIds, setSelectedSlotIds] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [filteredConsultantId, setFilteredConsultantId] = useState(null);
   const [loadingInitialData, setLoadingInitialData] = useState(true);
-
   const [loadingSchedules, setLoadingSchedules] = useState(false);
-
   const [registering, setRegistering] = useState(false);
-
   const [initialDataError, setInitialDataError] = useState(null);
-
   const [schedulesError, setSchedulesError] = useState(null);
-
   const [registrationError, setRegistrationError] = useState(null);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoadingInitialData(true);
-      setInitialDataError(null); // Reset lỗi trước khi fetch
+      setInitialDataError(null);
       try {
-        const consultantsResponse = await api.get("/consultants");
-        setConsultants(consultantsResponse.data);
+        const consultantsData = await ApiService.getConsultants();
+        setConsultants(consultantsData);
 
-        const slotsResponse = await api.get("/slot");
-        setAvailableSlots(slotsResponse.data);
+        const slotsData = await ApiService.getSlots();
+        setAvailableSlots(slotsData);
       } catch (err) {
-        console.error("Error fetching initial data:", err);
         setInitialDataError(
           "Không thể tải dữ liệu ban đầu (danh sách chuyên viên hoặc slot)."
         );
-        // Interceptor đã xử lý lỗi 401 (hết hạn token)
       } finally {
         setLoadingInitialData(false);
       }
@@ -66,15 +58,25 @@ const StaffViewMeetings = () => {
 
     fetchInitialData();
   }, []);
+
   const fetchSchedules = async () => {
     setLoadingSchedules(true);
-    setSchedulesError(null); // Reset lỗi trước khi fetch
+    setSchedulesError(null);
     try {
-      const schedulesResponse = await api.get("/schedules");
-
-      setSchedules(schedulesResponse.data);
+      const schedulesData = await ApiService.getSchedules();
+      const validSchedules = schedulesData.filter((schedule) => {
+        const isValid =
+          schedule.slot &&
+          schedule.slot.slotStart &&
+          schedule.slot.slotEnd &&
+          typeof schedule.slot.slotStart === "string" &&
+          typeof schedule.slot.slotEnd === "string" &&
+          schedule.hasOwnProperty("bookedStatus") &&
+          schedule.slotId !== undefined;
+        return isValid;
+      });
+      setSchedules(validSchedules);
     } catch (err) {
-      console.error("Error fetching schedules:", err);
       setSchedulesError("Không thể tải danh sách lịch đã đăng ký.");
     } finally {
       setLoadingSchedules(false);
@@ -84,12 +86,12 @@ const StaffViewMeetings = () => {
   useEffect(() => {
     fetchSchedules();
   }, []);
+
   const showModal = () => {
     setIsModalVisible(true);
-    // Reset các state khi mở modal để form trống
     setSelectedDate(null);
     setSelectedConsultantId(null);
-    setSelectedSlotIds([]); // Reset mảng
+    setSelectedSlotIds([]);
     setRegistrationError(null);
   };
 
@@ -105,7 +107,7 @@ const StaffViewMeetings = () => {
       return;
     }
 
-    setRegistering(true); // Bắt đầu trạng thái đăng ký
+    setRegistering(true);
     setRegistrationError(null);
 
     try {
@@ -115,11 +117,7 @@ const StaffViewMeetings = () => {
         slotIds: selectedSlotIds,
       };
 
-      console.log("Đang gửi đăng ký:", registrationData);
-
-      const response = await api.post("/slot/register", registrationData);
-
-      console.log("Đăng ký thành công:", response.data);
+      const response = await ApiService.registerSchedule(registrationData);
 
       message.success(`Đã đăng ký thành công ${selectedSlotIds.length} slot!`);
 
@@ -128,46 +126,49 @@ const StaffViewMeetings = () => {
       setIsModalVisible(false);
       setSelectedDate(null);
       setSelectedConsultantId(null);
-      setSelectedSlotIds([]); // Reset MẢNG selectedSlotIds
+      setSelectedSlotIds([]);
     } catch (err) {
-      console.error("Lỗi khi đăng ký:", err);
-
       const errorMessage =
-        err.response?.data?.message ||
-        "Có lỗi xảy ra khi đăng ký lịch làm việc.";
-      setRegistrationError(errorMessage); // Hiển thị lỗi đăng ký ngay trong modal
-      message.error(errorMessage); // Hiển thị thông báo lỗi Ant Design
+        err.message || "Có lỗi xảy ra khi đăng ký lịch làm việc.";
+      setRegistrationError(errorMessage);
+      message.error(errorMessage);
     } finally {
-      setRegistering(false); // Kết thúc trạng thái đăng ký
+      setRegistering(false);
     }
   };
 
   const handleCancel = () => {
-    console.log("Hủy bỏ đăng ký");
     setIsModalVisible(false);
-    // Reset các state khi hủy
     setSelectedDate(null);
     setSelectedConsultantId(null);
-    setSelectedSlotIds([]); // Reset MẢNG selectedSlotIds
+    setSelectedSlotIds([]);
     setRegistrationError(null);
   };
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
-    setSelectedSlotIds([]); // Reset slots đã chọn khi đổi ngày
+    setSelectedSlotIds([]);
   };
 
   const handleConsultantChange = (value) => {
     setSelectedConsultantId(value);
-    setSelectedSlotIds([]); // Reset slots đã chọn khi đổi chuyên viên
+    setSelectedSlotIds([]);
   };
 
   const handleSlotSelect = (slotId) => {
+    if (bookedSlots.has(slotId)) {
+      message.warning("Slot này đã được đăng ký!");
+      return;
+    }
     if (selectedSlotIds.includes(slotId)) {
       setSelectedSlotIds((prevIds) => prevIds.filter((id) => id !== slotId));
     } else {
       setSelectedSlotIds((prevIds) => [...prevIds, slotId]);
     }
+  };
+
+  const handleFilterConsultantChange = (value) => {
+    setFilteredConsultantId(value);
   };
 
   const isOkButtonDisabled =
@@ -180,14 +181,35 @@ const StaffViewMeetings = () => {
     return availableSlots.filter((slot) => selectedSlotIds.includes(slot.id));
   }, [selectedSlotIds, availableSlots]);
 
+  const bookedSlots = useMemo(() => {
+    if (!selectedDate || !selectedConsultantId) return new Set();
+    const formattedDate = selectedDate.format("YYYY-MM-DD");
+    return new Set(
+      schedules
+        .filter((schedule) => {
+          const matchesConsultant =
+            String(schedule.consultantId) === String(selectedConsultantId);
+          const matchesDate = schedule.date === formattedDate;
+          const isBooked = schedule.bookedStatus === false; // Since 1 -> false means booked
+          return matchesConsultant && matchesDate && isBooked;
+        })
+        .map((schedule) => String(schedule.slotId))
+    );
+  }, [schedules, selectedConsultantId, selectedDate]);
+
+  const disabledDate = (current) => {
+    return current && current < dayjs().startOf("day");
+  };
+
   const columns = [
     {
       title: "Chuyên viên",
-
       dataIndex: "consultantId",
       key: "consultantName",
       render: (consultantId) => {
-        const consultant = consultants.find((c) => c.id === consultantId);
+        const consultant = consultants.find(
+          (c) => c.consultant_id === consultantId
+        );
         return consultant ? consultant.consultantName : "Không rõ";
       },
     },
@@ -198,21 +220,23 @@ const StaffViewMeetings = () => {
     },
     {
       title: "Slot",
-
       dataIndex: "slot",
       key: "slot",
       render: (slot) => {
-        if (!slot) return <Tag color="default">N/A</Tag>;
-
-        return (
-          <Tag color="blue">{`${slot.slotStart.substring(
-            0,
-            5
-          )} - ${slot.slotEnd.substring(0, 5)}`}</Tag>
-        );
+        if (!slot || !slot.slotStart || !slot.slotEnd)
+          return <Tag color="default">N/A</Tag>;
+        return <Tag color="blue">{`${slot.slotStart} - ${slot.slotEnd}`}</Tag>;
       },
     },
   ];
+
+  const filteredSchedules = useMemo(() => {
+    if (!filteredConsultantId) return schedules;
+    return schedules.filter(
+      (schedule) =>
+        String(schedule.consultantId) === String(filteredConsultantId)
+    );
+  }, [schedules, filteredConsultantId]);
 
   if (loadingInitialData) {
     return (
@@ -261,33 +285,56 @@ const StaffViewMeetings = () => {
           Đăng kí lịch làm việc
         </Button>
 
-        <Title level={4} style={{ marginTop: "30px", marginBottom: "10px" }}>
-          Lịch làm việc đã đăng ký
-        </Title>
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Space align="center">
+            <Text strong>Lọc theo chuyên viên:</Text>
+            <Select
+              placeholder="Chọn chuyên viên để lọc"
+              style={{ width: 200 }}
+              onChange={handleFilterConsultantChange}
+              value={filteredConsultantId}
+              allowClear
+            >
+              {Array.isArray(consultants) &&
+                consultants.map((consultant) => (
+                  <Option
+                    key={consultant.consultant_id}
+                    value={consultant.consultant_id}
+                  >
+                    {consultant.consultantName}
+                  </Option>
+                ))}
+            </Select>
+          </Space>
 
-        {schedulesError && (
-          <Alert
-            message="Lỗi tải lịch đã đăng ký"
-            description={schedulesError}
-            type="error"
-            showIcon
-            style={{ marginBottom: "10px" }}
-          />
-        )}
+          <Title level={4} style={{ marginTop: "10px", marginBottom: "10px" }}>
+            Lịch làm việc đã đăng ký
+          </Title>
 
-        <Spin spinning={loadingSchedules}>
-          <Table
-            dataSource={schedules}
-            columns={columns}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-          />
-        </Spin>
+          {schedulesError && (
+            <Alert
+              message="Lỗi tải lịch đã đăng ký"
+              description={schedulesError}
+              type="error"
+              showIcon
+              style={{ marginBottom: "10px" }}
+            />
+          )}
+
+          <Spin spinning={loadingSchedules}>
+            <Table
+              dataSource={filteredSchedules}
+              columns={columns}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+            />
+          </Spin>
+        </Space>
       </Space>
 
       <Modal
         title="Đăng ký Lịch làm việc"
-        visible={isModalVisible}
+        open={isModalVisible}
         onOk={handleOk}
         onCancel={handleCancel}
         okButtonProps={{
@@ -319,7 +366,6 @@ const StaffViewMeetings = () => {
           <div>
             <Text strong>Chọn chuyên viên:</Text>
             <br />
-
             <Select
               placeholder="Chọn chuyên viên"
               style={{ width: "100%", marginTop: "8px" }}
@@ -330,8 +376,11 @@ const StaffViewMeetings = () => {
             >
               {Array.isArray(consultants) &&
                 consultants.map((consultant) => (
-                  <Option key={consultant.id} value={consultant.id}>
-                    {consultant.consultantName}{" "}
+                  <Option
+                    key={consultant.consultant_id}
+                    value={consultant.consultant_id}
+                  >
+                    {consultant.consultantName}
                   </Option>
                 ))}
             </Select>
@@ -344,6 +393,7 @@ const StaffViewMeetings = () => {
               value={selectedDate}
               onChange={handleDateChange}
               format="YYYY-MM-DD"
+              disabledDate={disabledDate}
               style={{ marginTop: "8px" }}
             />
           </div>
@@ -353,30 +403,46 @@ const StaffViewMeetings = () => {
               Chọn Slot thời gian:
             </Title>
 
-            <List
-              size="small"
-              bordered
-              dataSource={availableSlots}
-              renderItem={(item) => (
-                <List.Item
-                  key={item.id}
-                  style={{
-                    cursor: "pointer",
-
-                    backgroundColor: selectedSlotIds.includes(item.id)
-                      ? "#e6f7ff"
-                      : "transparent",
-                    borderColor: selectedSlotIds.includes(item.id)
-                      ? "#91d5ff"
-                      : undefined,
-                  }}
-                  onClick={() => handleSlotSelect(item.id)}
-                >
-                  {item.label}
-                </List.Item>
-              )}
-              style={{ maxHeight: "200px", overflowY: "auto", width: "200px" }}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              {availableSlots.map((slot) => {
+                const isBooked = bookedSlots.has(String(slot.id));
+                return (
+                  <Tooltip
+                    key={slot.id}
+                    title={isBooked ? "Slot này đã được đăng ký" : ""}
+                  >
+                    <div
+                      className={`p-3 border rounded-lg text-center flex flex-col items-center justify-center ${
+                        isBooked
+                          ? "border-gray-300 bg-gray-100 opacity-60 pointer-events-none"
+                          : selectedSlotIds.includes(slot.id)
+                          ? "border-emerald-600 bg-emerald-50 cursor-pointer"
+                          : "border-gray-200 bg-white cursor-pointer"
+                      }`}
+                      onClick={() => !isBooked && handleSlotSelect(slot.id)}
+                    >
+                      <div className="flex items-center">
+                        {isBooked && (
+                          <Lock className="w-4 h-4 mr-1 text-gray-500" />
+                        )}
+                        <span
+                          className={`font-medium ${
+                            isBooked ? "text-gray-500" : "text-gray-700"
+                          }`}
+                        >
+                          {slot.label}
+                        </span>
+                      </div>
+                      {isBooked && (
+                        <div className="text-xs text-red-500 mt-1">
+                          Đã được đặt
+                        </div>
+                      )}
+                    </div>
+                  </Tooltip>
+                );
+              })}
+            </div>
 
             {selectedSlotIds.length > 0 && (
               <Text strong style={{ marginTop: "10px", display: "block" }}>
