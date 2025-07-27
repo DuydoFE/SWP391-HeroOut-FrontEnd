@@ -52,17 +52,15 @@ const EventPage = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // console.log("useEffect is running."); // Remove or comment out verbose logs
     const fetchEvents = async () => {
       try {
         const response = await api.get("/events");
-        // console.log("API Response Data:", response.data); // Remove or comment out verbose logs
 
         if (Array.isArray(response.data)) {
           setEvents(response.data);
         } else {
           console.error("API response data is not an array:", response.data);
-          setError(new Error("API trả về dữ liệu không đúng định dạng.")); // User-friendly error message
+          setError(new Error("API trả về dữ liệu không đúng định dạng."));
         }
         setIsLoading(false);
       } catch (err) {
@@ -80,14 +78,13 @@ const EventPage = () => {
         } else {
           setError(new Error(`Lỗi khi tải danh sách sự kiện: ${err.message}`));
         }
-        setError(err); // Keep original error for console if needed
+        setError(err);
         setIsLoading(false);
       }
     };
 
     fetchEvents();
-    // console.log("fetchEvents function called."); // Remove or comment out verbose logs
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
   return (
     <div className="container mx-auto p-4 md:p-6 bg-gray-100 min-h-screen">
