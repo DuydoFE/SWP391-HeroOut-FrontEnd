@@ -17,7 +17,6 @@ const SurveyEvent = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // State mới để lưu kết quả sau khi nộp
   const [surveyResult, setSurveyResult] = useState(null);
 
   useEffect(() => {
@@ -58,7 +57,6 @@ const SurveyEvent = () => {
         const selectedOption = question.options.find(
           (opt) => opt.id === selectedOptionId
         );
-        // tính điểm
         totalScore += selectedOption?.score || 0;
       }
     });
@@ -83,7 +81,6 @@ const SurveyEvent = () => {
     };
     try {
       await api.post("/survey-responses/submit", payload);
-
       calculateAndSetResults();
     } catch (err) {
       console.error("Error submitting survey:", err);
@@ -123,8 +120,8 @@ const SurveyEvent = () => {
 
   if (surveyResult) {
     return (
-      <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
-        <div className="bg-white rounded-lg shadow-md p-6 md:p-8 text-center">
+      <div className="container mx-auto p-4 md:p-6 bg-gray-50 min-h-screen flex flex-col items-center justify-center">
+        <div className="bg-white rounded-lg shadow-md p-6 md:p-8 text-center max-w-lg w-full">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-800">
             Hoàn thành khảo sát!
@@ -138,63 +135,9 @@ const SurveyEvent = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6 md:p-8 mt-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b pb-3">
-            Xem lại câu trả lời
-          </h2>
-          {survey.questions.map((question, qIndex) => {
-            const userAnswerId = answers[question.id];
-            const correctAnswer = question.options.find((opt) => opt.score > 0);
-
-            return (
-              <div
-                key={question.id}
-                className="mb-6 border-b pb-4 last:border-b-0"
-              >
-                <p className="text-lg font-semibold text-gray-700 mb-3">
-                  Câu {qIndex + 1}: {question.questionText}
-                </p>
-                <div className="space-y-2">
-                  {question.options.map((option) => {
-                    const isUserAnswer = option.id === userAnswerId;
-                    const isCorrectAnswer = option.score > 0;
-
-                    let style = "border-gray-200";
-                    if (isCorrectAnswer) {
-                      style = "bg-green-100 border-green-400";
-                    }
-                    if (isUserAnswer && !isCorrectAnswer) {
-                      style = "bg-red-100 border-red-400";
-                    }
-
-                    return (
-                      <div
-                        key={option.id}
-                        className={`flex items-center p-3 border rounded-lg transition-colors ${style}`}
-                      >
-                        {isUserAnswer ? (
-                          <CheckCircle
-                            className={`w-5 h-5 mr-3 ${
-                              isCorrectAnswer
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          />
-                        ) : (
-                          <div className="w-5 h-5 mr-3"></div>
-                        )}
-                        <span className="text-gray-800">{option.content}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
         <button
           onClick={() => navigate(`/events/${eventId}`)}
-          className="w-full mt-6 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700"
+          className="w-full mt-6 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 max-w-lg"
         >
           Quay lại trang sự kiện
         </button>
