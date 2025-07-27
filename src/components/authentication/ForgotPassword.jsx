@@ -1,14 +1,14 @@
 import React from "react";
 import { Form, Input, Button, Typography, Card, notification } from "antd";
 import { MailOutlined } from "@ant-design/icons";
-import { Link, useNavigate } from "react-router-dom"; // <-- 1. Import useNavigate
+import { Link, useNavigate } from "react-router-dom";
 import HeroOutLogo from "../../assets/heroout.jpg";
 import api from "../../services/axios";
 
 const { Title, Text } = Typography;
 
 function ForgotPassword() {
-  const navigate = useNavigate(); // <-- 2. Khởi tạo navigate
+  const navigate = useNavigate();
 
   const handleForgotPassword = async (values) => {
     try {
@@ -19,7 +19,7 @@ function ForgotPassword() {
           "Yêu cầu đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra email của bạn!",
         placement: "topRight",
       });
-      navigate("/reset-password"); // <-- 3. Điều hướng khi thành công
+      navigate("/reset-password");
     } catch (error) {
       notification.error({
         message: "Gửi yêu cầu thất bại",

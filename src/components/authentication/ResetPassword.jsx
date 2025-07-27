@@ -16,13 +16,13 @@ function ResetPassword() {
 
     try {
       // Gửi request với payload chính xác theo yêu cầu của API
-      await api.post("/reset-password", { token, newPassword: password }); // <-- ĐÃ SỬA
+      await api.post("/reset-password", { token, newPassword: password });
       notification.success({
         message: "Thành công",
         description: "Mật khẩu của bạn đã được đặt lại thành công!",
         placement: "topRight",
       });
-      navigate("/login"); // Điều hướng đến trang đăng nhập
+      navigate("/login");
     } catch (error) {
       notification.error({
         message: "Đặt lại mật khẩu thất bại",
