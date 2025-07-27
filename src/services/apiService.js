@@ -222,6 +222,19 @@ class ApiService {
     }
   }
 
+  static async updateConsultantDetails(consultantId, details) {
+    try {
+      const response = await api.put(`/consultants/${consultantId}`, details);
+      return response.data;
+    } catch (error) {
+      console.error(
+        `Error updating consultant ${consultantId} details:`,
+        error
+      );
+      throw this.handleError(error);
+    }
+  }
+
   // Schedule APIs
   static async getSchedules() {
     try {

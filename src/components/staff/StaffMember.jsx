@@ -14,6 +14,7 @@ import {
   User,
 } from "lucide-react";
 import api from "../../services/axios";
+import ApiService from "../../services/apiService";
 import { toast } from "react-toastify";
 
 const StaffMember = () => {
@@ -29,6 +30,45 @@ const StaffMember = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
+
+  // Hàm lấy consultantId từ accountId
+  const fetchConsultantId = async (accountId) => {
+    try {
+      const response = await api.get("consultants");
+      const consultant = response.data.find((c) => c.accountId === accountId);
+      return consultant ? consultant.id : null;
+    } catch (error) {
+      console.error("Lỗi khi lấy consultant ID:", error);
+      return null;
+    }
+  };
+
+  // Hàm tạo mới consultant
+  const createConsultant = async (accountId, consultantData) => {
+    try {
+      if (!accountId) {
+        throw new Error("Không có accountId để tạo consultant");
+      }
+
+      const response = await api.post("/consultants", {
+        accountId,
+        ...consultantData,
+      });
+
+      // Kiểm tra cấu trúc phản hồi
+      const consultantId = response?.data?.id || response?.id;
+      if (!consultantId) {
+        throw new Error("Phản hồi từ API consultants không chứa ID");
+      }
+
+      return consultantId;
+    } catch (error) {
+      console.error("Lỗi khi tạo consultant:", error.response || error);
+      throw new Error(
+        error.response?.data?.message || "Không thể tạo thông tin tư vấn viên"
+      );
+    }
+  };
 
   // Fetch members from API
   useEffect(() => {
@@ -87,41 +127,70 @@ const StaffMember = () => {
   );
   const totalPages = Math.ceil(filteredMembers.length / itemsPerPage);
 
-  const handleAddMember = async (memberData) => {
+  const handleAddMember = async (accountData, consultantData) => {
     try {
-      const response = await api.post("/register", memberData);
+      // Kiểm tra dữ liệu đầu vào cho account
+      if (!accountData.name || !accountData.email || !accountData.password) {
+        throw new Error("Thiếu các trường bắt buộc: Tên, Email, Mật khẩu");
+      }
+
+      const response = await ApiService.register(accountData);
+      console.log(
+        "handleAddMember response:",
+        JSON.stringify(response, null, 2)
+      );
+      if (!response?.id) {
+        throw new Error("Phản hồi từ API register không chứa ID tài khoản");
+      }
       toast.success("Thêm thành viên thành công!");
+
       setShowAddModal(false);
-      fetchMembers(); // Refresh the list
+      fetchMembers();
     } catch (error) {
       console.error("Error adding member:", error);
-      toast.error("Không thể thêm thành viên");
+      toast.error(error.message || "Không thể thêm thành viên");
     }
   };
 
-  const handleEditMember = async (memberData) => {
+  const handleEditMember = async (accountData, consultantData) => {
     try {
-      await api.put(`/accounts/update?id=${selectedMember.id}`, memberData);
+      await ApiService.updateAccount(selectedMember.id, accountData);
       toast.success("Cập nhật thành viên thành công!");
+
+      if (accountData.role === "CONSULTANT" && consultantData) {
+        const consultantId = await fetchConsultantId(selectedMember.id);
+        if (consultantId) {
+          await ApiService.updateConsultantDetails(
+            consultantId,
+            consultantData
+          );
+          toast.success("Cập nhật thông tin tư vấn viên thành công!");
+        } else {
+          const newConsultantId = await createConsultant(
+            selectedMember.id,
+            consultantData
+          );
+          toast.success("Tạo thông tin tư vấn viên thành công!");
+        }
+      }
+
       setShowEditModal(false);
       setSelectedMember(null);
-      fetchMembers(); // Refresh the list
+      fetchMembers();
     } catch (error) {
       console.error("Error updating member:", error);
-      toast.error("Không thể cập nhật thành viên");
+      toast.error(error.message || "Không thể cập nhật thành viên");
     }
   };
 
   const handleStatusToggle = async (memberId, currentStatus) => {
     try {
       const newStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-      await api.put(
-        `/accounts/${memberId}/status?status=${newStatus}`
-      );
+      await api.put(`/accounts/${memberId}/status?status=${newStatus}`);
       toast.success(
         `Đã ${newStatus === "ACTIVE" ? "kích hoạt" : "vô hiệu hóa"} tài khoản`
       );
-      fetchMembers(); // Refresh the list
+      fetchMembers();
     } catch (error) {
       console.error("Error updating status:", error);
       toast.error("Không thể cập nhật trạng thái");
@@ -523,7 +592,7 @@ const StaffMember = () => {
   );
 };
 
-// Member Form Modal Component
+// MemberModal Component
 const MemberModal = ({ title, member, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     name: member?.name || "",
@@ -534,19 +603,100 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
     dateOfBirth: member?.dateOfBirth || "",
     avatar: member?.avatar || "",
     role: member?.role || "MEMBER",
-    password: "", // Only for new members
+    password: "",
   });
+
+  const [consultantData, setConsultantData] = useState({
+    fieldOfStudy: "",
+    degreeLevel: "",
+    issuedDate: "",
+    expiryDate: "",
+    organization: "",
+    specialities: "",
+    experience: "",
+    rating: 5.0,
+    consultations: 0,
+    bio: "",
+  });
+
+  useEffect(() => {
+    if (member && member.role === "CONSULTANT") {
+      const fetchConsultantDetails = async () => {
+        try {
+          const details = await ApiService.getConsultant(member.id);
+          setConsultantData({
+            fieldOfStudy: details.fieldOfStudy || "",
+            degreeLevel: details.degreeLevel || "",
+            issuedDate: details.issuedDate || "",
+            expiryDate: details.expiryDate || "",
+            organization: details.organization || "",
+            specialities: Array.isArray(details.specialties)
+              ? details.specialties.join(", ")
+              : details.specialties || "",
+            experience: details.experience || "",
+            rating: details.rating || 5.0,
+            consultations: details.consultations || 0,
+            bio: details.bio || "",
+          });
+        } catch (error) {
+          console.error("Error fetching consultant details:", error);
+          toast.warn(
+            "Tư vấn viên chưa có thông tin chi tiết. Vui lòng nhập thông tin."
+          );
+          setConsultantData({
+            fieldOfStudy: "",
+            degreeLevel: "",
+            issuedDate: "",
+            expiryDate: "",
+            organization: "",
+            specialities: "",
+            experience: "",
+            rating: 5.0,
+            consultations: 0,
+            bio: "",
+          });
+        }
+      };
+      fetchConsultantDetails();
+    }
+  }, [member]);
+
+  const handleAccountChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleConsultantChange = (e) => {
+    const { name, value } = e.target;
+    setConsultantData({ ...consultantData, [name]: value });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const submitData = { ...formData };
+    const submitAccountData = { ...formData };
 
-    // Remove password field if editing existing member
-    if (member && !submitData.password) {
-      delete submitData.password;
+    // Kiểm tra các trường bắt buộc cho account
+    if (
+      !submitAccountData.name ||
+      !submitAccountData.email ||
+      (!member && !submitAccountData.password)
+    ) {
+      toast.error(
+        "Vui lòng nhập đầy đủ các trường bắt buộc: Tên, Email, Mật khẩu"
+      );
+      return;
     }
 
-    onSubmit(submitData);
+    // Xóa password nếu chỉnh sửa và không nhập password mới
+    if (member && !submitAccountData.password) {
+      delete submitAccountData.password;
+    }
+
+    // Chỉ gửi consultantData khi chỉnh sửa và vai trò là CONSULTANT
+    onSubmit(
+      submitAccountData,
+      member && submitAccountData.role === "CONSULTANT" ? consultantData : null
+    );
   };
 
   return (
@@ -561,12 +711,11 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
               </label>
               <input
                 type="text"
+                name="name"
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={handleAccountChange}
               />
             </div>
 
@@ -576,12 +725,11 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
               </label>
               <input
                 type="email"
+                name="email"
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
+                onChange={handleAccountChange}
               />
             </div>
 
@@ -592,12 +740,11 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
                 </label>
                 <input
                   type="password"
+                  name="password"
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
+                  onChange={handleAccountChange}
                 />
               </div>
             )}
@@ -608,11 +755,10 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
               </label>
               <input
                 type="tel"
+                name="phone"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
+                onChange={handleAccountChange}
               />
             </div>
 
@@ -622,11 +768,10 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
               </label>
               <input
                 type="text"
+                name="address"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
-                }
+                onChange={handleAccountChange}
               />
             </div>
 
@@ -635,11 +780,10 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
                 Giới tính
               </label>
               <select
+                name="gender"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.gender}
-                onChange={(e) =>
-                  setFormData({ ...formData, gender: e.target.value })
-                }
+                onChange={handleAccountChange}
               >
                 <option value="MALE">Nam</option>
                 <option value="FEMALE">Nữ</option>
@@ -652,11 +796,10 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
               </label>
               <input
                 type="date"
+                name="dateOfBirth"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.dateOfBirth}
-                onChange={(e) =>
-                  setFormData({ ...formData, dateOfBirth: e.target.value })
-                }
+                onChange={handleAccountChange}
               />
             </div>
 
@@ -666,11 +809,10 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
               </label>
               <input
                 type="url"
+                name="avatar"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.avatar}
-                onChange={(e) =>
-                  setFormData({ ...formData, avatar: e.target.value })
-                }
+                onChange={handleAccountChange}
               />
             </div>
 
@@ -679,11 +821,10 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
                 Vai trò
               </label>
               <select
+                name="role"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={formData.role}
-                onChange={(e) =>
-                  setFormData({ ...formData, role: e.target.value })
-                }
+                onChange={handleAccountChange}
               >
                 <option value="MEMBER">Thành viên</option>
                 <option value="CONSULTANT">Tư vấn viên</option>
@@ -691,6 +832,139 @@ const MemberModal = ({ title, member, onClose, onSubmit }) => {
                 <option value="ADMIN">Quản trị viên</option>
               </select>
             </div>
+
+            {/* Chỉ hiển thị thông tin tư vấn viên khi chỉnh sửa và vai trò là CONSULTANT */}
+            {member && formData.role === "CONSULTANT" && (
+              <>
+                <h3 className="text-lg font-semibold mt-6 mb-2">
+                  Thông tin Tư vấn viên
+                </h3>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Lĩnh vực học
+                  </label>
+                  <input
+                    type="text"
+                    name="fieldOfStudy"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.fieldOfStudy}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Trình độ học vấn
+                  </label>
+                  <input
+                    type="text"
+                    name="degreeLevel"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.degreeLevel}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày cấp chứng chỉ
+                  </label>
+                  <input
+                    type="date"
+                    name="issuedDate"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.issuedDate}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày hết hạn chứng chỉ
+                  </label>
+                  <input
+                    type="date"
+                    name="expiryDate"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.expiryDate}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tổ chức
+                  </label>
+                  <input
+                    type="text"
+                    name="organization"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.organization}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Chuyên môn (phân cách bởi dấu phẩy)
+                  </label>
+                  <input
+                    type="text"
+                    name="specialities"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.specialities}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kinh nghiệm
+                  </label>
+                  <input
+                    type="text"
+                    name="experience"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.experience}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Đánh giá (Rating)
+                  </label>
+                  <input
+                    type="number"
+                    name="rating"
+                    step="0.1"
+                    min="0"
+                    max="5"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.rating}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Số buổi tư vấn
+                  </label>
+                  <input
+                    type="number"
+                    name="consultations"
+                    min="0"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.consultations}
+                    onChange={handleConsultantChange}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tiểu sử (Bio)
+                  </label>
+                  <textarea
+                    name="bio"
+                    rows="3"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={consultantData.bio}
+                    onChange={handleConsultantChange}
+                  ></textarea>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-3 mt-6">
@@ -730,7 +1004,6 @@ const MemberDetailModal = ({ member, onClose }) => {
         </div>
 
         <div className="space-y-6">
-          {/* Basic Info */}
           <div className="flex items-center space-x-4">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
               {member.avatar ? (
@@ -768,7 +1041,6 @@ const MemberDetailModal = ({ member, onClose }) => {
             </div>
           </div>
 
-          {/* Contact Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center space-x-3">
               <Mail className="w-5 h-5 text-gray-400" />
