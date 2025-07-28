@@ -468,21 +468,19 @@ const StaffEvent = () => {
           setSurveyData={setNewSurvey}
           onCancel={() => setShowCreateSurveyModal(false)}
           onSubmit={async () => {
-            await createSurvey(newSurvey);   // Gọi API tạo survey
-
-            setShowCreateSurveyModal(false); // Đóng modal tạo
-            setNewSurvey({
-              title: '',
-              questions: [{ questionText: '', options: [{ content: '', score: 0 }] }]
-            });
-
-            // Đảm bảo surveyEventId có
-            if (surveyEventId) {
-              await handleShowSurveys({ id: surveyEventId });
-            } else {
-              console.error('surveyEventId bị null, không thể load lại surveys');
+            const created = await createSurvey(newSurvey); // Gọi API tạo survey
+            if (created) {
+              setShowCreateSurveyModal(false); // Chỉ đóng nếu tạo thành công
+              setNewSurvey({
+                title: '',
+                questions: [{ questionText: '', options: [{ content: '', score: 0 }] }]
+              });
+              if (surveyEventId) {
+                await handleShowSurveys({ id: surveyEventId });
+              }
             }
           }}
+
         />
       )}
 
